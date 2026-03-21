@@ -1,0 +1,18 @@
+{
+  "css.validate": false,
+  "postcss.validate": false,
+  "tailwindCSS.experimental.configFile": null,
+  "tailwindCSS.files.exclude": [
+    "**/.git/**",
+    "**/node_modules/**",
+    "**/.next/**",
+    "**/.nuxt/**",
+    "**/.vuepress/**",
+    "**/.cache/**",
+    "**/dist/**"
+  ],
+  "files.associations": {
+    "*.css": "postcss"
+  },
+  "postcss.processImportedFiles": true
+}
