@@ -1,15 +1,20 @@
 "use client";
 
 import React, { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Shield, CheckCircle2, X, Loader2, KeyRound } from "lucide-react";
 
 export default function TOTPVerificationModal({ detectedUsers, postId, onVerified, onClose }) {
+  const router = useRouter();
   const [totpInputs, setTotpInputs] = useState({});
   const [verifying, setVerifying] = useState({});
   const [errors, setErrors] = useState({});
   const [verifiedUsers, setVerifiedUsers] = useState({});
+  const [attemptsLeft, setAttemptsLeft] = useState({});
+  const [lockedUsers, setLockedUsers] = useState({});
+  const [reloadingUsers, setReloadingUsers] = useState({});
 
   const handleTotpChange = (userId, value) => {
     setTotpInputs(prev => ({ ...prev, [userId]: value }));
@@ -38,9 +43,30 @@ export default function TOTPVerificationModal({ detectedUsers, postId, onVerifie
 
       if (res.ok) {
         setVerifiedUsers(prev => ({ ...prev, [userId]: true }));
+        setAttemptsLeft(prev => ({ ...prev, [userId]: 5 }));
+        setLockedUsers(prev => ({ ...prev, [userId]: false }));
         onVerified(userId);
       } else {
+        const remainingAttempts = typeof data.remainingAttempts === "number" ? data.remainingAttempts : undefined;
+
+        if (typeof remainingAttempts === "number") {
+          setAttemptsLeft(prev => ({ ...prev, [userId]: remainingAttempts }));
+        }
+
+        if (data.lockedUntil || remainingAttempts === 0 || res.status === 429) {
+          setLockedUsers(prev => ({ ...prev, [userId]: true }));
+        }
+
         setErrors(prev => ({ ...prev, [userId]: data.error || "Invalid code" }));
+        setTotpInputs(prev => ({ ...prev, [userId]: "" }));
+
+        if (res.status === 401) {
+          setReloadingUsers(prev => ({ ...prev, [userId]: true }));
+          setTimeout(() => {
+            router.refresh();
+            setReloadingUsers(prev => ({ ...prev, [userId]: false }));
+          }, 600);
+        }
       }
     } catch (err) {
       setErrors(prev => ({ ...prev, [userId]: "Verification failed" }));
@@ -116,7 +142,7 @@ export default function TOTPVerificationModal({ detectedUsers, postId, onVerifie
                       />
                       <Button
                         onClick={() => verifyTotp(user.userId)}
-                        disabled={verifying[user.userId]}
+                        disabled={verifying[user.userId] || lockedUsers[user.userId] || (attemptsLeft[user.userId] === 0)}
                         size="sm"
                         className="bg-indigo-600 hover:bg-indigo-500 text-white shrink-0"
                       >
@@ -127,6 +153,19 @@ export default function TOTPVerificationModal({ detectedUsers, postId, onVerifie
                         )}
                       </Button>
                     </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Attempts left: {typeof attemptsLeft[user.userId] === "number" ? attemptsLeft[user.userId] : 5}/5
+                    </p>
+                    {reloadingUsers[user.userId] && (
+                      <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                        Reloading after incorrect code...
+                      </p>
+                    )}
+                    {lockedUsers[user.userId] && (
+                      <p className="text-xs text-red-600 dark:text-red-400 mt-1">
+                        Maximum tries reached. Please try again later.
+                      </p>
+                    )}
                     {errors[user.userId] && (
                       <p className="text-xs text-red-500 mt-1">{errors[user.userId]}</p>
                     )}

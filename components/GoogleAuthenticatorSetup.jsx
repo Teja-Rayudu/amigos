@@ -14,6 +14,9 @@ export default function GoogleAuthenticatorSetup({ onSuccess, onSkip }) {
   const [error, setError] = useState("");
   const [verifying, setVerifying] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [attemptsLeft, setAttemptsLeft] = useState(5);
+  const [lockedUntil, setLockedUntil] = useState(null);
+  const [reloadingSetup, setReloadingSetup] = useState(false);
 
   React.useEffect(() => {
     generateTotpSecret();
@@ -31,8 +34,18 @@ export default function GoogleAuthenticatorSetup({ onSuccess, onSkip }) {
       if (res.ok) {
         setSecret(data.secret);
         setQrCode(data.qrCode);
+        if (typeof data.remainingAttempts === "number") {
+          setAttemptsLeft(data.remainingAttempts);
+        }
+        setLockedUntil(null);
         setStep("setup");
       } else {
+        if (typeof data.remainingAttempts === "number") {
+          setAttemptsLeft(data.remainingAttempts);
+        }
+        if (data.lockedUntil) {
+          setLockedUntil(data.lockedUntil);
+        }
         setError(data.error || "Failed to setup Google Authenticator");
       }
     } catch (err) {
@@ -67,11 +80,27 @@ export default function GoogleAuthenticatorSetup({ onSuccess, onSkip }) {
 
       if (res.ok) {
         setStep("verify");
+        setAttemptsLeft(5);
+        setLockedUntil(null);
         setTimeout(() => {
           if (onSuccess) onSuccess();
         }, 1500);
       } else {
+        if (typeof data.remainingAttempts === "number") {
+          setAttemptsLeft(data.remainingAttempts);
+        }
+        if (data.lockedUntil) {
+          setLockedUntil(data.lockedUntil);
+        }
         setError(data.error || "Invalid verification code");
+        setToken("");
+
+        if (data.shouldReload) {
+          setReloadingSetup(true);
+          setStep("loading");
+          await generateTotpSecret();
+          setReloadingSetup(false);
+        }
       }
     } catch (err) {
       setError("Verification failed. Please try again.");
@@ -149,6 +178,9 @@ export default function GoogleAuthenticatorSetup({ onSuccess, onSkip }) {
                 <label className="text-sm font-medium">
                   Enter 6-digit code from your authenticator:
                 </label>
+                <p className="text-xs text-muted-foreground">
+                  Attempts left: {attemptsLeft}/5
+                </p>
                 <Input
                   placeholder="000000"
                   value={token}
@@ -162,12 +194,22 @@ export default function GoogleAuthenticatorSetup({ onSuccess, onSkip }) {
                 {error && (
                   <p className="text-xs text-red-500">{error}</p>
                 )}
+                {reloadingSetup && (
+                  <p className="text-xs text-amber-600 dark:text-amber-400">
+                    Reloading authenticator setup after incorrect code...
+                  </p>
+                )}
+                {lockedUntil && (
+                  <p className="text-xs text-red-600 dark:text-red-400">
+                    Too many failed attempts. Please try again later.
+                  </p>
+                )}
               </div>
 
               <div className="flex gap-2">
                 <Button
                   onClick={verifyToken}
-                  disabled={verifying || token.length !== 6}
+                  disabled={verifying || token.length !== 6 || attemptsLeft <= 0 || Boolean(lockedUntil)}
                   className="flex-1 bg-green-600 hover:bg-green-500 text-white"
                 >
                   {verifying ? (

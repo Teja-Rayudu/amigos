@@ -6,6 +6,9 @@ import Post from '@/models/Post';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 
+const MAX_TOTP_ATTEMPTS = 5;
+const TOTP_LOCK_MINUTES = 10;
+
 export async function POST(request) {
   try {
     const session = await getServerSession(authOptions);
@@ -15,8 +18,9 @@ export async function POST(request) {
 
     await connectToDatabase();
     const { postId, token } = await request.json();
+    const normalizedToken = String(token || '').trim();
 
-    if (!postId || !token) {
+    if (!postId || !normalizedToken) {
       return NextResponse.json(
         { error: 'postId and token are required' },
         { status: 400 }
@@ -33,18 +37,49 @@ export async function POST(request) {
       );
     }
 
+    if (user.totpLockUntil && user.totpLockUntil > new Date()) {
+      return NextResponse.json(
+        {
+          error: 'Maximum TOTP attempts reached. Try again later.',
+          remainingAttempts: 0,
+          maxAttempts: MAX_TOTP_ATTEMPTS,
+          lockedUntil: user.totpLockUntil,
+        },
+        { status: 429 }
+      );
+    }
+
     // Verify the TOTP token
     const verified = speakeasy.totp.verify({
       secret: user.totpSecret,
       encoding: 'base32',
-      token,
-      window: 2, // Allow 30 seconds before/after for clock skew
+      token: normalizedToken,
+      window: 4, // Allow for wider client/server clock skew in consent flow
     });
 
     if (!verified) {
+      const failedAttempts = (user.totpFailedAttempts || 0) + 1;
+      const shouldLock = failedAttempts >= MAX_TOTP_ATTEMPTS;
+      const lockUntil = shouldLock
+        ? new Date(Date.now() + TOTP_LOCK_MINUTES * 60 * 1000)
+        : null;
+
+      await User.findByIdAndUpdate(session.user.id, {
+        totpFailedAttempts: failedAttempts,
+        totpLockUntil: lockUntil,
+      });
+
       return NextResponse.json(
-        { error: 'Invalid TOTP token' },
-        { status: 401 }
+        {
+          error: shouldLock
+            ? 'Maximum TOTP attempts reached. Try again later.'
+            : 'Invalid TOTP token',
+          remainingAttempts: Math.max(MAX_TOTP_ATTEMPTS - failedAttempts, 0),
+          maxAttempts: MAX_TOTP_ATTEMPTS,
+          shouldReload: !shouldLock,
+          lockedUntil: lockUntil,
+        },
+        { status: shouldLock ? 429 : 401 }
       );
     }
 
@@ -94,6 +129,11 @@ export async function POST(request) {
     }
 
     await post.save();
+
+    await User.findByIdAndUpdate(session.user.id, {
+      totpFailedAttempts: 0,
+      totpLockUntil: null,
+    });
 
     return NextResponse.json({
       message: 'TOTP verified successfully. Consent recorded.',

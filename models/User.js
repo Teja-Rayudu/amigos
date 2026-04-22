@@ -55,6 +55,14 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
+  totpFailedAttempts: {
+    type: Number,
+    default: 0,
+  },
+  totpLockUntil: {
+    type: Date,
+    default: null,
+  },
   // Social connections
   friends: [{
     type: mongoose.Schema.Types.ObjectId,

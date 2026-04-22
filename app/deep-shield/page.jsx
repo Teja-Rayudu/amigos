@@ -7,13 +7,18 @@ import { BreadcrumbItem, BreadcrumbPage } from "@/components/ui/breadcrumb";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import FaceRegistration from "@/components/FaceRegistration";
+import GoogleAuthenticatorSetup from "@/components/GoogleAuthenticatorSetup";
 import { useState, useEffect } from "react";
-import { Shield, ShieldCheck, ShieldAlert, CheckCircle2, Clock, Loader2 } from "lucide-react";
+import { useSearchParams } from "next/navigation";
+import { Shield, ShieldCheck, ShieldAlert, CheckCircle2, Clock, Loader2, RefreshCw, X } from "lucide-react";
 
 export default function DeepShieldPage() {
+  const searchParams = useSearchParams();
+  const returnTo = searchParams.get("returnTo");
   const [faceStatus, setFaceStatus] = useState(null);
   const [loading, setLoading] = useState(true);
   const [pendingPosts, setPendingPosts] = useState([]);
+  const [showAuthenticatorSetup, setShowAuthenticatorSetup] = useState(false);
 
   useEffect(() => {
     checkFaceStatus();
@@ -133,8 +138,57 @@ export default function DeepShieldPage() {
             </CardContent>
           </Card>
 
+          <Card className="border-indigo-200 dark:border-indigo-900">
+            <CardHeader>
+              <CardTitle>Authenticator Recovery</CardTitle>
+              <CardDescription>
+                If your code keeps failing, re-sync Google Authenticator with your existing account secret.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm text-muted-foreground">
+                This does not rotate your secret. It just shows your current QR so your app can be synced again.
+              </p>
+              <Button
+                onClick={() => setShowAuthenticatorSetup(true)}
+                className="bg-indigo-600 hover:bg-indigo-500 text-white"
+              >
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Re-sync Authenticator
+              </Button>
+            </CardContent>
+          </Card>
+
           {/* Face Registration Component */}
           <FaceRegistration />
+
+          {showAuthenticatorSetup && (
+            <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+              <div className="relative w-full max-w-md">
+                <button
+                  onClick={() => setShowAuthenticatorSetup(false)}
+                  className="absolute right-2 top-2 z-10 rounded-full bg-black/60 p-1 text-white hover:bg-black/80"
+                  aria-label="Close authenticator setup"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+                <GoogleAuthenticatorSetup
+                  onSuccess={() => {
+                    setShowAuthenticatorSetup(false);
+                    if (returnTo) {
+                      window.location.href = returnTo;
+                    }
+                  }}
+                  onSkip={() => {
+                    setShowAuthenticatorSetup(false);
+                    if (returnTo) {
+                      window.location.href = returnTo;
+                    }
+                  }}
+                />
+              </div>
+            </div>
+          )}
         </div>
       </SidebarInset>
     </SidebarProvider>
