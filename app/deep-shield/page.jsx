@@ -8,11 +8,11 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import FaceRegistration from "@/components/FaceRegistration";
 import GoogleAuthenticatorSetup from "@/components/GoogleAuthenticatorSetup";
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { Shield, ShieldCheck, ShieldAlert, CheckCircle2, Clock, Loader2, RefreshCw, X } from "lucide-react";
 
-export default function DeepShieldPage() {
+function DeepShieldContent() {
   const searchParams = useSearchParams();
   const returnTo = searchParams.get("returnTo");
   const [faceStatus, setFaceStatus] = useState(null);
@@ -192,5 +192,13 @@ export default function DeepShieldPage() {
         </div>
       </SidebarInset>
     </SidebarProvider>
+  );
+}
+
+export default function DeepShieldPage() {
+  return (
+    <Suspense fallback={<div className="flex h-screen items-center justify-center"><Loader2 className="h-8 w-8 animate-spin" /></div>}>
+      <DeepShieldContent />
+    </Suspense>
   );
 }

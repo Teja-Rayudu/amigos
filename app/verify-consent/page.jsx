@@ -1,13 +1,13 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Shield, CheckCircle2, Loader2 } from "lucide-react";
 
-export default function VerifyConsentPage() {
+function VerifyConsentContent() {
   const searchParams = useSearchParams();
   const postId = searchParams.get("postId");
   const maxAttempts = 5;
@@ -223,5 +223,13 @@ export default function VerifyConsentPage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+export default function VerifyConsentPage() {
+  return (
+    <Suspense fallback={<div className="flex h-screen items-center justify-center"><Loader2 className="h-8 w-8 animate-spin" /></div>}>
+      <VerifyConsentContent />
+    </Suspense>
   );
 }
