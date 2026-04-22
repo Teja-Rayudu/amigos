@@ -150,9 +150,8 @@ export default function CreatePost() {
     } catch (err) {
       console.error("Scan error:", err);
       setStatus("error");
-      setMessage("Error during face scanning. Publishing without Deep Shield check.");
-      // Fallback: publish without shield check
-      await publishPost([], 0);
+      setMessage(`❌ Deep Shield Error: ${err.message || "Failed to initialize face detector"}`);
+      // REMOVED AUTO-PUBLISH FALLBACK - don't publish if shield crashes!
     }
   };
 
