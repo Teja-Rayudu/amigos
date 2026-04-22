@@ -50,7 +50,7 @@ export default function CreatePost() {
       // Load face-api and detect faces in the image
       const faceapi = await import("face-api.js");
       
-      const MODEL_URL = "https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/";
+      const MODEL_URL = "/models/";
       
       // Load models if not already loaded
       if (!faceapi.nets.tinyFaceDetector.isLoaded) {
