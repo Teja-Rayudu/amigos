@@ -46,6 +46,15 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
+  // Google Authenticator - TOTP 2FA
+  totpSecret: {
+    type: String,
+    default: null,
+  },
+  totpEnabled: {
+    type: Boolean,
+    default: false,
+  },
   // Social connections
   friends: [{
     type: mongoose.Schema.Types.ObjectId,

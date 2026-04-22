@@ -6,7 +6,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ImagePlus, Send, Shield, Loader2, CheckCircle2, AlertTriangle, X } from "lucide-react";
-import OTPVerificationModal from "./OTPVerificationModal";
 
 export default function CreatePost() {
   const [imagePreview, setImagePreview] = useState(null);
@@ -15,8 +14,6 @@ export default function CreatePost() {
   const [status, setStatus] = useState("idle"); // idle, scanning, consent-required, publishing, published, error
   const [message, setMessage] = useState("");
   const [detectedUsers, setDetectedUsers] = useState([]);
-  const [otpData, setOtpData] = useState({}); // { userId: { otp, expiresAt } }
-  const [showOtpModal, setShowOtpModal] = useState(false);
   const [postId, setPostId] = useState(null);
   const fileInputRef = useRef(null);
 
@@ -106,7 +103,7 @@ export default function CreatePost() {
       if (detectData.requiresConsent && detectData.matchedUsers.length > 0) {
         setDetectedUsers(detectData.matchedUsers);
         setStatus("consent-required");
-        setMessage(`🛡️ Deep Shield detected ${detectData.matchedUsers.length} registered user(s). OTP consent required.`);
+        setMessage(`🛡️ Deep Shield detected ${detectData.matchedUsers.length} registered user(s). Sending verification emails...`);
         
         // Create post as pending first
         const postRes = await fetch("/api/posts", {
@@ -126,26 +123,27 @@ export default function CreatePost() {
         const postData = await postRes.json();
         setPostId(postData.post._id);
 
-        // Generate OTPs for each detected user
-        const otps = {};
-        for (const user of detectData.matchedUsers) {
-          const otpRes = await fetch("/api/otp/generate", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              postId: postData.post._id,
-              userId: user.userId,
-            }),
-          });
-          const otpResult = await otpRes.json();
-          otps[user.userId] = {
-            otp: otpResult.otp,
-            expiresAt: otpResult.expiresAt,
-            verified: false,
-          };
+        // Send consent emails to detected users
+        const emailRes = await fetch("/api/consent/send-email", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            postId: postData.post._id,
+            detectedUserIds: detectData.matchedUsers.map(u => u.userId),
+          }),
+        });
+
+        const emailData = await emailRes.json();
+        
+        if (emailRes.ok) {
+          if (emailData.failedCount > 0) {
+            setMessage(`✉️ Verification emails sent to ${emailData.sentCount} user(s). ${emailData.failedCount} user(s) could not be notified (likely no 2FA enabled).`);
+          } else {
+            setMessage(`✉️ Verification emails sent to ${emailData.sentCount} user(s). They'll verify via Google Authenticator and your post will publish automatically.`);
+          }
+        } else {
+          setMessage(`⚠️ Could not send emails, but post is ready to publish once users verify.`);
         }
-        setOtpData(otps);
-        setShowOtpModal(true);
       } else {
         // All faces in the image belong to the current uploader, publish directly
         await publishPost([], detections.length);
@@ -192,27 +190,6 @@ export default function CreatePost() {
     }
   };
 
-  const handleOtpVerified = (userId) => {
-    setOtpData(prev => ({
-      ...prev,
-      [userId]: { ...prev[userId], verified: true }
-    }));
-    
-    // Check if all OTPs verified
-    const updatedOtps = { ...otpData, [userId]: { ...otpData[userId], verified: true } };
-    const allVerified = Object.values(updatedOtps).every(o => o.verified);
-    
-    if (allVerified) {
-      setShowOtpModal(false);
-      setStatus("published");
-      setMessage("✨ All consents received! Post published successfully!");
-      setDetectedUsers([]);
-      setImagePreview(null);
-      setImageFile(null);
-      setCaption("");
-    }
-  };
-
   const resetForm = () => {
     setImagePreview(null);
     setImageFile(null);
@@ -220,7 +197,6 @@ export default function CreatePost() {
     setStatus("idle");
     setMessage("");
     setDetectedUsers([]);
-    setOtpData({});
     setPostId(null);
   };
 
@@ -298,30 +274,23 @@ export default function CreatePost() {
 
           {/* Detected Users */}
           {detectedUsers.length > 0 && status === "consent-required" && (
-            <div className="space-y-2">
-              <p className="text-sm font-medium">Detected Users:</p>
+            <div className="space-y-3">
+              <p className="text-sm font-medium">Detected Users (Awaiting Verification):</p>
               {detectedUsers.map(user => (
-                <div key={user.userId} className="flex items-center justify-between p-3 bg-amber-50 dark:bg-amber-950/20 rounded-lg border border-amber-200 dark:border-amber-800">
+                <div key={user.userId} className="flex items-center justify-between p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
                   <div className="flex items-center gap-2">
-                    <Shield className="h-4 w-4 text-amber-600" />
+                    <Shield className="h-4 w-4 text-blue-600" />
                     <span className="text-sm font-medium">{user.userName}</span>
                   </div>
-                  <span className={`text-xs px-2 py-1 rounded-full ${
-                    otpData[user.userId]?.verified 
-                      ? "bg-green-100 text-green-700" 
-                      : "bg-amber-100 text-amber-700"
-                  }`}>
-                    {otpData[user.userId]?.verified ? "✓ Consented" : "Pending OTP"}
+                  <span className="text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-700">
+                    Verification Email Sent
                   </span>
                 </div>
               ))}
-              <Button 
-                onClick={() => setShowOtpModal(true)} 
-                className="w-full bg-amber-600 hover:bg-amber-500 text-white"
-              >
-                <Shield className="h-4 w-4 mr-2" />
-                Enter OTP Codes
-              </Button>
+              <div className="bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-lg p-3 text-sm text-green-700 dark:text-green-300">
+                <p className="font-semibold mb-1">✉️ Emails Sent!</p>
+                <p>Verification emails have been sent to the detected users. They'll verify with their Google Authenticator app, and your post will publish automatically once all users consent.</p>
+              </div>
             </div>
           )}
 
@@ -355,17 +324,6 @@ export default function CreatePost() {
           </div>
         </CardContent>
       </Card>
-
-      {/* OTP Modal */}
-      {showOtpModal && (
-        <OTPVerificationModal
-          detectedUsers={detectedUsers}
-          otpData={otpData}
-          postId={postId}
-          onVerified={handleOtpVerified}
-          onClose={() => setShowOtpModal(false)}
-        />
-      )}
     </>
   );
 }

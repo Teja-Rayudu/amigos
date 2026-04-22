@@ -4,11 +4,12 @@ import React, { useRef, useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Camera, CheckCircle2, Loader2, ShieldCheck, AlertCircle } from "lucide-react";
+import GoogleAuthenticatorSetup from "./GoogleAuthenticatorSetup";
 
 export default function FaceRegistration() {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
-  const [status, setStatus] = useState("idle"); // idle, loading-models, ready, capturing, processing, success, error
+  const [status, setStatus] = useState("idle"); // idle, loading-models, ready, capturing, processing, success, error, setup-2fa, complete
   const [message, setMessage] = useState("");
   const [faceApiLoaded, setFaceApiLoaded] = useState(false);
   const [stream, setStream] = useState(null);
@@ -96,11 +97,15 @@ export default function FaceRegistration() {
 
       if (res.ok) {
         setStatus("success");
-        setMessage("Face registered successfully! Deep Shield is now protecting you.");
+        setMessage("Face registered successfully! Now setting up Google Authenticator...");
         // Stop camera
         if (stream) {
           stream.getTracks().forEach(track => track.stop());
         }
+        // Show authenticator setup after 1.5 seconds
+        setTimeout(() => {
+          setStatus("setup-2fa");
+        }, 1500);
       } else {
         setStatus("error");
         setMessage(data.error || "Failed to register face.");
@@ -203,6 +208,30 @@ export default function FaceRegistration() {
             </Button>
           )}
         </div>
+
+        {/* Google Authenticator Setup Modal */}
+        {status === "setup-2fa" && (
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <GoogleAuthenticatorSetup
+              onSuccess={() => {
+                setStatus("complete");
+                setMessage("Deep Shield is now fully protected with Google Authenticator!");
+              }}
+              onSkip={() => {
+                setStatus("complete");
+                setMessage("Face registration complete. You can setup Google Authenticator later.");
+              }}
+            />
+          </div>
+        )}
+
+        {/* Completion Message */}
+        {status === "complete" && (
+          <div className="p-4 rounded-lg text-sm flex items-center gap-2 bg-green-50 text-green-700 border border-green-200">
+            <CheckCircle2 className="h-4 w-4 shrink-0" />
+            {message}
+          </div>
+        )}
       </CardContent>
     </Card>
   );

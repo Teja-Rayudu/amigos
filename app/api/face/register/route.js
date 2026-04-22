@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import mongoose from 'mongoose';
 import connectToDatabase from '@/lib/mongodb';
 import User from '@/models/User';
 import { getServerSession } from 'next-auth';
@@ -13,6 +14,9 @@ export async function POST(request) {
 
     await connectToDatabase();
     const { descriptor } = await request.json();
+
+    // Ensure user ID is a valid MongoDB ObjectId
+    const userId = new mongoose.Types.ObjectId(session.user.id);
 
     if (!descriptor || !Array.isArray(descriptor) || descriptor.length !== 128) {
       return NextResponse.json(
@@ -29,8 +33,9 @@ export async function POST(request) {
       );
     }
 
+    // Update user with face descriptor
     const user = await User.findByIdAndUpdate(
-      session.user.id,
+      userId,
       {
         faceDescriptor: descriptor,
         faceRegistered: true,
@@ -42,14 +47,22 @@ export async function POST(request) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`✅ Face registered for user ${user._id}:`, {
+        faceRegistered: user.faceRegistered,
+        descriptorLength: user.faceDescriptor.length,
+      });
+    }
+
     return NextResponse.json({
       message: 'Face registered successfully',
-      faceRegistered: true,
+      faceRegistered: user.faceRegistered,
+      userId: user._id,
     });
   } catch (error) {
     if (process.env.NODE_ENV === 'development') {
       console.error('Face registration error:', error);
     }
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ error: 'Internal server error', details: error.message }, { status: 500 });
   }
 }

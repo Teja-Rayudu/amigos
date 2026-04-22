@@ -36,7 +36,7 @@ export async function POST(request) {
       faceRegistered: true,
     }).select('_id name faceDescriptor');
 
-    const THRESHOLD = 0.6;
+    const THRESHOLD = 0.5; // More lenient for better face matching
     const matchedUsers = [];
     let unrecognizedFaces = 0;
 

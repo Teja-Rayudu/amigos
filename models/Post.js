@@ -31,11 +31,24 @@ const postSchema = new mongoose.Schema({
     userName: String,
     approved: { type: Boolean, default: false },
   }],
-  // Post status: pending (awaiting OTP), approved (all faces approved), published
+  // Consent tracking
+  consentGiven: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+  }],
+  pendingConsentFrom: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+  }],
+  // Post status: pending (awaiting consent), approved (all faces approved), published
   status: {
     type: String,
     enum: ['pending', 'approved', 'published'],
     default: 'published',
+  },
+  published: {
+    type: Boolean,
+    default: true,
   },
 }, {
   timestamps: true,
