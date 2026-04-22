@@ -63,11 +63,10 @@ export default function CreatePost() {
 
       // Create image element for detection
       const img = new Image();
-      img.crossOrigin = "anonymous";
+      img.src = imagePreview;
       await new Promise((resolve, reject) => {
         img.onload = resolve;
         img.onerror = reject;
-        img.src = imagePreview;
       });
 
       // Detect faces

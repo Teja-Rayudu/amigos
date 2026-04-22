@@ -20,7 +20,7 @@ export default function FaceRegistration() {
     try {
       const faceapi = await import("face-api.js");
       
-      const MODEL_URL = "https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/";
+      const MODEL_URL = "/models";
       
       await Promise.all([
         faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
